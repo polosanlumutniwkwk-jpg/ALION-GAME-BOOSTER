@@ -1,0 +1,67 @@
+name: ALION APK Builder
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ALION-GameBooster-Android-Studio-Project.zip'
+      - '.github/workflows/build.yml'
+
+jobs:
+  build:
+    name: Build ALION APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check ZIP file
+        run: |
+          test -f ALION-GameBooster-Android-Studio-Project.zip
+
+      - name: Extract project
+        run: |
+          mkdir project_files
+          unzip -q ALION-GameBooster-Android-Studio-Project.zip -d project_files
+
+          PROJECT_DIR=$(dirname "$(find project_files -name settings.gradle.kts -print -quit)")
+
+          if [ "$PROJECT_DIR" = "project_files" ] || [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
+            echo "Project Android tidak ditemukan!"
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Project ditemukan: $PROJECT_DIR"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build APK
+        run: |
+          gradle -p "$PROJECT_DIR" assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALION-APK
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
